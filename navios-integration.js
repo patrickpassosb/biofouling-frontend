@@ -286,7 +286,13 @@ function savePredictionToStorage(result) {
         if (dashboardSaved) {
             dashboardData = JSON.parse(dashboardSaved);
         }
+        
+        // Add prediction and LIMIT to 100
         dashboardData.predictions.push(result);
+        if (dashboardData.predictions.length > 100) {
+            dashboardData.predictions = dashboardData.predictions.slice(-100);
+        }
+        
         const shipData = {
             id: result.ship_id,
             name: result.ship_id,

@@ -36,12 +36,18 @@ async function loadDashboardData() {
         const savedData = localStorage.getItem('biofouling_dashboard_data');
         if (savedData) {
             dashboardData = JSON.parse(savedData);
+            // Ensure predictions are limited to 100 (safety check)
+            if (dashboardData.predictions && dashboardData.predictions.length > 100) {
+                dashboardData.predictions = dashboardData.predictions.slice(-100);
+                localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+            }
         } else {
             // Try loading from predictions
             const predictions = localStorage.getItem('biofouling_predictions');
             if (predictions) {
                 const preds = JSON.parse(predictions);
-                dashboardData.predictions = preds;
+                // Limit to 100 (safety check)
+                dashboardData.predictions = preds.length > 100 ? preds.slice(-100) : preds;
                 // Extract unique ships
                 const shipsMap = new Map();
                 preds.forEach(pred => {
