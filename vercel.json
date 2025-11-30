@@ -1,23 +1,13 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "*.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/",
-      "dest": "/index.html"
+      "source": "/",
+      "destination": "/index.html"
     },
     {
-      "src": "/navios",
-      "dest": "/navios.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/navios",
+      "destination": "/navios.html"
     }
   ],
   "headers": [
