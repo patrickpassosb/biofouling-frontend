@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petrobras - Manutenção de Navios</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="components.js"></script>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <img src="petrobras-logo.png" alt="Petrobras">
+        </div>
+        <nav class="nav-menu-center">
+            <a href="index.html" class="nav-item active">
+                <span class="material-icons">home</span>
+            </a>
+            <a href="navios.html" class="nav-item">
+                <span class="material-icons">directions_boat</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span class="material-icons">chat</span>
+            </a>
+        </nav>
+        <nav class="nav-menu-bottom">
+            <a href="#" class="nav-item">
+                <span class="material-icons">settings</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span class="material-icons">logout</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="page-title">Dashboard</h1>
+            <div class="header-actions">
+                <div class="search-bar">
+                    <span class="material-icons search-icon">search</span>
+                    <input type="text" placeholder="Pesquise por algo">
+                </div>
+                <button class="notification-btn">
+                    <span class="material-icons">notifications_none</span>
+                </button>
+                <div class="user-avatar">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%234D4D4D'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold' font-size='16'%3EU%3C/text%3E%3C/svg%3E"
+                        alt="User">
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Content -->
+        <main class="content">
+            <!-- Highlights Section -->
+            <section class="highlights-section">
+                <div class="section-header">
+                    <h2>Destaques</h2>
+                    <select class="time-filter">
+                        <option>Últimos 30 dias</option>
+                        <option>Últimos 60 dias</option>
+                        <option>Últimos 90 dias</option>
+                    </select>
+                </div>
+                <div class="highlights-grid">
+                    <div class="highlight-card">
+                        <div class="card-icon green">
+                            <span class="material-icons">directions_boat</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Navios ativos</p>
+                            <p class="card-value" id="activeShips">-</p>
+                            <p class="card-change positive">
+                                <span class="material-icons">trending_up</span>
+                                <span id="activeShipsChange">Carregando...</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="highlight-card">
+                        <div class="card-icon green">
+                            <span class="material-icons">speed</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Velocidade média</p>
+                            <p class="card-value" id="avgSpeed">-</p>
+                            <p class="card-change" id="avgSpeedChange">
+                                <span class="material-icons">trending_up</span>
+                                Carregando...
+                            </p>
+                        </div>
+                    </div>
+                    <div class="highlight-card">
+                        <div class="card-icon green">
+                            <span class="material-icons">attach_money</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Economia acumulada</p>
+                            <p class="card-value" id="totalSavings">R$ 0,00</p>
+                            <p class="card-change positive">
+                                <span class="material-icons">trending_up</span>
+                                <span id="totalSavingsChange">Carregando...</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="highlight-card">
+                        <div class="card-icon green">
+                            <span class="material-icons">cloud</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Emissões evitadas</p>
+                            <p class="card-value" id="emissionsSaved">0 ton CO₂</p>
+                            <p class="card-change positive">
+                                <span class="material-icons">trending_up</span>
+                                <span id="emissionsSavedChange">Carregando...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Information Section -->
+            <section class="detailed-section">
+                <h2>Informações detalhadas</h2>
+                <div class="details-grid">
+                    <!-- Maintenance Chart -->
+                    <div class="info-card chart-card">
+                        <h3>Quantidade de manutenções</h3>
+                        <canvas id="maintenanceChart"></canvas>
+                    </div>
+
+                    <!-- Status List -->
+                    <div class="info-card">
+                        <h3>Lista de status</h3>
+                        <table class="status-table">
+                            <thead>
+                                <tr>
+                                    <th>Navio</th>
+                                    <th>Localização</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statusTableBody">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; padding: 20px;">
+                                        <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                        <p style="margin-top: 10px; color: #4D4D4D;">Carregando dados...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <a href="#" class="view-more">Ver lista completa <span
+                                class="material-icons">arrow_forward</span></a>
+                    </div>
+
+                    <!-- Map -->
+                    <div class="info-card map-card">
+                        <h3>Localização das manutenções</h3>
+                        <div class="map-container">
+                            <svg viewBox="0 0 400 300" class="map-svg">
+                                <!-- Simplified Brazil map -->
+                                <path
+                                    d="M 200 50 L 250 80 L 280 120 L 270 180 L 240 240 L 200 260 L 160 240 L 140 200 L 130 160 L 140 120 L 170 80 Z"
+                                    fill="#E9E9E9" stroke="#4D4D4D" stroke-width="1" />
+                                <!-- Location markers -->
+                                <circle cx="200" cy="100" r="6" fill="#1A932E" />
+                                <circle cx="220" cy="140" r="6" fill="#1A932E" />
+                                <circle cx="190" cy="180" r="6" fill="#1A932E" />
+                            </svg>
+                            <div class="map-legend">
+                                <div class="legend-item">
+                                    <strong>Navio</strong>
+                                    <strong>Responsável</strong>
+                                    <strong>Progresso</strong>
+                                </div>
+                                <div class="legend-item">
+                                    <span>São Sebastião</span>
+                                    <span>Manoel Neto</span>
+                                    <span class="progress-bar"><span class="progress-fill"
+                                            style="width: 100%"></span></span>
+                                </div>
+                                <div class="legend-item">
+                                    <span>André Rebouças</span>
+                                    <span>Felipe Augusto</span>
+                                    <span class="progress-bar"><span class="progress-fill progress-maintenance"
+                                            style="width: 71%"></span></span>
+                                </div>
+                                <div class="legend-item">
+                                    <span>Henrique Dias</span>
+                                    <span>Mateus Oliveira</span>
+                                    <span class="progress-bar"><span class="progress-fill progress-maintenance"
+                                            style="width: 62%"></span></span>
+                                </div>
+                                <div class="legend-item">
+                                    <span>Rio Grande</span>
+                                    <span>Amanda Santos</span>
+                                    <span class="progress-bar"><span class="progress-fill progress-late"
+                                            style="width: 28%"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fleet Status Proportion -->
+                    <div class="info-card">
+                        <h3>Proporção de status da frota</h3>
+                        <div class="treemap-container">
+                            <div class="treemap-item treemap-ok">
+                                <span class="treemap-label">Limpo</span>
+                                <span class="treemap-value">50%</span>
+                            </div>
+                            <div class="treemap-item treemap-maintenance">
+                                <span class="treemap-label">Suja</span>
+                                <span class="treemap-value">30%</span>
+                            </div>
+                            <div class="treemap-item treemap-late">
+                                <span class="treemap-label">Manutenção</span>
+                                <span class="treemap-value">11%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="dashboard-integration.js"></script>
+</body>
+
+</html>

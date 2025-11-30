@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petrobras - Navios</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="components.js"></script>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <img src="petrobras-logo.png" alt="Petrobras">
+        </div>
+        <nav class="nav-menu-center">
+            <a href="index.html" class="nav-item">
+                <span class="material-icons">home</span>
+            </a>
+            <a href="navios.html" class="nav-item active">
+                <span class="material-icons">directions_boat</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span class="material-icons">chat</span>
+            </a>
+        </nav>
+        <nav class="nav-menu-bottom">
+            <a href="#" class="nav-item">
+                <span class="material-icons">settings</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span class="material-icons">logout</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="page-title">Navios</h1>
+            <div class="header-actions">
+                <div class="search-bar">
+                    <span class="material-icons search-icon">search</span>
+                    <input type="text" placeholder="Pesquise por algo">
+                </div>
+                <button class="notification-btn">
+                    <span class="material-icons">notifications_none</span>
+                </button>
+                <div class="user-avatar">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%234D4D4D'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold' font-size='16'%3EU%3C/text%3E%3C/svg%3E"
+                        alt="User">
+                </div>
+            </div>
+        </header>
+
+        <!-- Ships Content -->
+        <main class="content">
+            <!-- Prediction Form -->
+            <section class="ships-section">
+                <div class="form-container">
+                    <h3>Nova Predição de Biofouling</h3>
+                    <form id="predictionForm">
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="shipName">Nome do Navio *</label>
+                                <input type="text" id="shipName" name="shipName" required placeholder="Ex: São Sebastião">
+                            </div>
+                            <div class="form-field">
+                                <label for="speed">Velocidade (nós) *</label>
+                                <input type="number" id="speed" name="speed" required step="0.1" min="0" max="50" placeholder="Ex: 15.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="duration">Duração (dias) *</label>
+                                <input type="number" id="duration" name="duration" required step="0.1" min="0" placeholder="Ex: 10.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="distance">Distância (milhas náuticas) *</label>
+                                <input type="number" id="distance" name="distance" required step="0.1" min="0" placeholder="Ex: 3600.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="beaufortScale">Escala Beaufort (0-12) *</label>
+                                <input type="number" id="beaufortScale" name="beaufortScale" required min="0" max="12" placeholder="Ex: 3">
+                            </div>
+                            <div class="form-field">
+                                <label for="Area_Molhada">Área Molhada (m²) *</label>
+                                <input type="number" id="Area_Molhada" name="Area_Molhada" required step="0.1" min="0" placeholder="Ex: 5000.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="MASSA_TOTAL_TON">Massa Total (toneladas) *</label>
+                                <input type="number" id="MASSA_TOTAL_TON" name="MASSA_TOTAL_TON" required step="0.1" min="0" placeholder="Ex: 50000.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="TIPO_COMBUSTIVEL_PRINCIPAL">Tipo de Combustível *</label>
+                                <select id="TIPO_COMBUSTIVEL_PRINCIPAL" name="TIPO_COMBUSTIVEL_PRINCIPAL" required>
+                                    <option value="LSHFO">LSHFO - Low Sulphur Heavy Fuel Oil</option>
+                                    <option value="ULSMGO">ULSMGO - Ultra Low Sulphur Marine Gas Oil</option>
+                                    <option value="LSMGO">LSMGO - Low Sulphur Marine Gas Oil</option>
+                                    <option value="VLSHFO">VLSHFO - Very Low Sulphur Heavy Fuel Oil</option>
+                                    <option value="VLSFO">VLSFO - Very Low Sulphur Fuel Oil</option>
+                                    <option value="MGO">MGO - Marine Gas Oil</option>
+                                    <option value="HFO">HFO - Heavy Fuel Oil</option>
+                                    <option value="LNG">LNG - Liquefied Natural Gas</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label for="decLatitude">Latitude *</label>
+                                <input type="number" id="decLatitude" name="decLatitude" required step="0.0001" min="-90" max="90" placeholder="Ex: -23.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="decLongitude">Longitude *</label>
+                                <input type="number" id="decLongitude" name="decLongitude" required step="0.0001" min="-180" max="180" placeholder="Ex: -43.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="DiasDesdeUltimaLimpeza">Dias desde última limpeza *</label>
+                                <input type="number" id="DiasDesdeUltimaLimpeza" name="DiasDesdeUltimaLimpeza" required step="0.1" min="0" placeholder="Ex: 180.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="currency">Moeda</label>
+                                <select id="currency" name="currency">
+                                    <option value="BRL" selected>BRL - Real Brasileiro</option>
+                                    <option value="USD">USD - Dólar Americano</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" onclick="document.getElementById('predictionForm').reset()">Limpar</button>
+                            <button type="submit" class="btn-primary">Fazer Predição</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Results Container -->
+                <div id="resultsContainer" class="results-container" style="display: none;">
+                    <h3>Resultado da Predição</h3>
+                    <div id="predictionResults"></div>
+                </div>
+            </section>
+
+            <!-- Critical Level -->
+            <section class="ships-section">
+                <h2 class="section-title" id="criticalTitle">Navios com incrustação de nível <strong>crítico</strong></h2>
+                <div class="ships-grid" id="criticalShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+
+            <!-- High Level -->
+            <section class="ships-section">
+                <h2 class="section-title" id="highTitle">Navios com incrustação de nível <strong>alto</strong></h2>
+                <div class="ships-grid" id="highShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+
+            <!-- Moderate Level -->
+            <section class="ships-section">
+                <h2 class="section-title" id="moderateTitle">Navios com incrustação de nível <strong>moderado</strong></h2>
+                <div class="ships-grid" id="moderateShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+
+            <!-- Light Level -->
+            <section class="ships-section">
+                <h2 class="section-title" id="lightTitle">Navios com incrustação de nível <strong>leve</strong></h2>
+                <div class="ships-grid" id="lightShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+
+            <!-- Clean Ships -->
+            <section class="ships-section">
+                <h2 class="section-title" id="cleanTitle">Navios <strong>limpos</strong></h2>
+                <div class="ships-grid" id="cleanShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+
+            <!-- Under Maintenance -->
+            <section class="ships-section">
+                <h2 class="section-title" id="maintenanceTitle">Navios <strong>em manutenção</strong></h2>
+                <div class="ships-grid" id="maintenanceShips">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="navios-integration.js"></script>
+</body>
+
+</html>
