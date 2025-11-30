@@ -11,22 +11,23 @@ let dashboardData = {
 };
 
 async function initializeDashboard() {
-    // Check API health
-    try {
-        const health = await api.healthCheck();
+    // Check API health (non-blocking - don't wait for it)
+    api.healthCheck().then(health => {
         console.log('API Health:', health);
-    } catch (error) {
-        console.error('API health check failed:', error);
-        showError('Não foi possível conectar à API. Alguns dados podem não estar disponíveis.');
-    }
+    }).catch(error => {
+        console.warn('API health check failed (non-critical):', error);
+        // Don't show error to user - API is optional for local JSON data
+    });
 
-    // Load dashboard data
+    // Load dashboard data (this will load from JSON if localStorage is empty)
     await loadDashboardData();
     
     // Update UI
     updateHighlights();
     updateStatusTable();
     updateMaintenanceChart();
+    updateBiofoulingAnalysis();
+    updateFleetProportions();
 }
 
 async function loadDashboardData() {
@@ -68,10 +69,117 @@ async function loadDashboardData() {
                     }
                 });
                 dashboardData.ships = Array.from(shipsMap.values());
+            } else {
+                // Try loading from analise_biofouling.json file
+                await loadFromJSONFile();
             }
         }
     } catch (error) {
         console.error('Error loading dashboard data:', error);
+        // Try loading from JSON file as fallback
+        await loadFromJSONFile();
+    }
+}
+
+/**
+ * Load data from analise_biofouling.json file
+ */
+async function loadFromJSONFile() {
+    try {
+        // Try to fetch JSON file
+        let jsonData = null;
+        
+        try {
+            const response = await fetch('analise_biofouling.json');
+            if (response.ok) {
+                jsonData = await response.json();
+            } else {
+                console.log('JSON file not found or not accessible via fetch');
+            }
+        } catch (fetchError) {
+            console.warn('Fetch failed (likely CORS issue with file:// protocol):', fetchError);
+            // Try to load from embedded data if available
+            if (typeof ANALISE_BIOFOULING_DATA !== 'undefined') {
+                console.log('Loading data from embedded script');
+                jsonData = ANALISE_BIOFOULING_DATA;
+            } else {
+                console.log('No embedded data available, fetch failed');
+                return;
+            }
+        }
+        
+        if (!jsonData) {
+            return;
+        }
+        
+        // Convert JSON format to dashboard format
+        const predictions = jsonData.map(item => {
+            // Calculate delta_power_kw from Power_Increase_Percent
+            // Estimate base power from fuel consumption (typical: 1 ton fuel ≈ 200-300 kW)
+            // Using a conservative estimate: if extra fuel is known, estimate power
+            const extraFuelTons = item.Extra_Fuel_Tons || 0;
+            // Power increase percentage applied to estimated base power
+            // Typical ship power: 5000-15000 kW, using 8000 kW as average
+            const estimatedBasePower = 8000; // kW
+            const powerIncreasePercent = item.Power_Increase_Percent || 0;
+            const deltaPowerKw = (powerIncreasePercent / 100) * estimatedBasePower;
+            
+            return {
+                ship_id: item.shipName,
+                biofouling_level: item.Biofouling_Level,
+                risk_category: item.Risk_Category,
+                confidence: item.Confidence,
+                timestamp: item.startGMTDate ? new Date(item.startGMTDate).toISOString() : new Date().toISOString(),
+                sessionId: item.sessionId,
+                impact_analysis: {
+                    extra_fuel_tons: extraFuelTons,
+                    extra_co2_tons: item.Extra_CO2_Tons || 0,
+                    delta_power_kw: Math.round(deltaPowerKw),
+                    total_cost_brl: item.Total_Cost_BRL || 0,
+                    total_cost_usd: item.Total_Cost_USD || 0,
+                    preferred_currency: 'BRL',
+                    extra_cost_brl: item.Extra_Cost_BRL || 0,
+                    extra_cost_usd: item.Extra_Cost_USD || 0
+                },
+                recommended_action: item.Action
+            };
+        });
+        
+        // Extract unique ships
+        const shipsMap = new Map();
+        predictions.forEach(pred => {
+            if (!shipsMap.has(pred.ship_id)) {
+                shipsMap.set(pred.ship_id, {
+                    id: pred.ship_id,
+                    name: pred.ship_id,
+                    level: pred.biofouling_level,
+                    riskCategory: pred.risk_category,
+                    location: 'Em trânsito'
+                });
+            } else {
+                // Update to latest level if newer
+                const existingShip = shipsMap.get(pred.ship_id);
+                if (pred.timestamp > existingShip.lastUpdate) {
+                    existingShip.level = pred.biofouling_level;
+                    existingShip.riskCategory = pred.risk_category;
+                    existingShip.lastUpdate = pred.timestamp;
+                }
+            }
+        });
+        
+        dashboardData.predictions = predictions;
+        dashboardData.ships = Array.from(shipsMap.values());
+        
+        // Save to localStorage for future use
+        try {
+            localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+            localStorage.setItem('biofouling_predictions', JSON.stringify(predictions));
+            console.log('Data loaded from analise_biofouling.json and saved to localStorage');
+        } catch (e) {
+            console.warn('Could not save to localStorage:', e);
+        }
+    } catch (error) {
+        console.error('Error loading from JSON file:', error);
     }
 }
 
@@ -157,7 +265,7 @@ function updateStatusTable() {
     if (dashboardData.ships.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="3" style="text-align: center; padding: 20px; color: #4D4D4D;">
+                <td colspan="4" style="text-align: center; padding: 20px; color: #4D4D4D;">
                     Nenhum navio com dados disponíveis. Faça uma predição na página de Navios.
                 </td>
             </tr>
@@ -176,6 +284,26 @@ function updateStatusTable() {
         const locationCell = document.createElement('td');
         locationCell.textContent = ship.location || 'Em trânsito';
         
+        // Biofouling level cell
+        const levelCell = document.createElement('td');
+        const level = ship.level !== undefined ? ship.level : '-';
+        if (typeof level === 'number') {
+            const levelBadge = document.createElement('span');
+            levelBadge.className = `level-badge level-${level}`;
+            levelBadge.style.cssText = `
+                background-color: ${level === 0 ? '#1A932E' : level === 1 ? '#FFB74D' : level === 2 ? '#FFA726' : '#EF5350'};
+                color: white;
+                padding: 4px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+            `;
+            levelBadge.textContent = `Nível ${level}`;
+            levelCell.appendChild(levelBadge);
+        } else {
+            levelCell.textContent = '-';
+        }
+        
         const statusCell = document.createElement('td');
         const badge = document.createElement('span');
         badge.className = `status-badge status-${getStatusClass(ship.riskCategory)}`;
@@ -184,6 +312,7 @@ function updateStatusTable() {
         
         row.appendChild(nameCell);
         row.appendChild(locationCell);
+        row.appendChild(levelCell);
         row.appendChild(statusCell);
         
         tbody.appendChild(row);
@@ -273,7 +402,21 @@ function formatCurrency(value, currency) {
 }
 
 function showError(message) {
-    const errorDiv = UIComponents.createErrorMessage(message, 'error');
+    // Simple error display function that doesn't depend on UIComponents
+    console.error(message);
+    // Try to use UIComponents if available, otherwise show simple alert
+    if (typeof UIComponents !== 'undefined' && UIComponents.createErrorMessage) {
+        const errorDiv = UIComponents.createErrorMessage(message, 'error');
+        document.body.appendChild(errorDiv);
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 5000);
+    } else {
+        // Fallback: log to console only
+        console.warn('UIComponents not available, error logged:', message);
+    }
     const content = document.querySelector('.content');
     if (content) {
         content.insertBefore(errorDiv, content.firstChild);
@@ -287,6 +430,8 @@ window.addEventListener('storage', function(e) {
         updateHighlights();
         updateStatusTable();
         updateMaintenanceChart();
+        updateBiofoulingAnalysis();
+        updateFleetProportions();
     }
 });
 
@@ -301,6 +446,8 @@ window.addEventListener('biofouling-prediction-made', function(e) {
         updateHighlights();
         updateStatusTable();
         updateMaintenanceChart();
+        updateBiofoulingAnalysis();
+        updateFleetProportions();
     }
 });
 
@@ -309,6 +456,332 @@ function saveDashboardData() {
         localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
     } catch (error) {
         console.error('Error saving dashboard data:', error);
+    }
+}
+
+/**
+ * Update biofouling analysis section with real data
+ */
+function updateBiofoulingAnalysis() {
+    if (!dashboardData.predictions || dashboardData.predictions.length === 0) {
+        // Hide analysis section if no data
+        const analysisSection = document.querySelector('.biofouling-analysis-section');
+        if (analysisSection) {
+            analysisSection.style.display = 'none';
+        }
+        return;
+    }
+
+    // Show analysis section
+    const analysisSection = document.querySelector('.biofouling-analysis-section');
+    if (analysisSection) {
+        analysisSection.style.display = 'block';
+    }
+
+    // Calculate aggregated metrics
+    const metrics = DataAnalyzer.calculateAggregatedMetrics(dashboardData.predictions);
+    const insights = DataAnalyzer.generateInsights(dashboardData.predictions, dashboardData.ships);
+
+    // Update impact cards
+    const totalExtraFuelEl = document.getElementById('totalExtraFuel');
+    if (totalExtraFuelEl) {
+        totalExtraFuelEl.textContent = metrics.totalExtraFuel.toFixed(2);
+    }
+
+    const totalCostBRLEl = document.getElementById('totalCostBRL');
+    if (totalCostBRLEl) {
+        const symbol = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS.BRL : 'R$';
+        totalCostBRLEl.textContent = `${symbol} ${metrics.totalExtraCostBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    }
+
+    const totalCostUSDEl = document.getElementById('totalCostUSD');
+    if (totalCostUSDEl) {
+        const symbol = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS.USD : 'US$';
+        totalCostUSDEl.textContent = `${symbol} ${metrics.totalExtraCostUSD.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    }
+
+    const totalExtraCO2El = document.getElementById('totalExtraCO2');
+    if (totalExtraCO2El) {
+        totalExtraCO2El.textContent = metrics.totalExtraCO2.toFixed(2);
+    }
+
+    const totalExtraPowerEl = document.getElementById('totalExtraPower');
+    if (totalExtraPowerEl) {
+        totalExtraPowerEl.textContent = metrics.totalExtraPower.toFixed(0);
+    }
+
+    // Update priority ships list
+    updatePriorityShipsList(insights.priorityShips);
+
+    // Update distribution chart
+    updateDistributionChart(insights.distribution);
+
+    // Update recommendations
+    updateRecommendations(insights.recommendations);
+
+    // Update highlights with average biofouling level
+    updateHighlightsWithBiofouling(metrics.averageBiofoulingLevel);
+
+    // Ensure chart is redrawn after a short delay to allow DOM to settle
+    setTimeout(function() {
+        updateDistributionChart(insights.distribution);
+    }, 100);
+}
+
+/**
+ * Update priority ships list
+ */
+function updatePriorityShipsList(priorityShips) {
+    const container = document.getElementById('priorityShipsList');
+    if (!container) return;
+
+    if (priorityShips.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #4D4D4D; padding: 20px;">Nenhum navio prioritário identificado.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    priorityShips.forEach((ship, index) => {
+        const shipCard = document.createElement('div');
+        shipCard.className = 'priority-ship-card';
+        shipCard.style.cssText = `
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 4px solid ${ship.risk === 'Critical' ? '#EF5350' : ship.risk === 'High' ? '#FFA726' : '#FFB74D'};
+            background-color: #FAFAFA;
+            border-radius: 4px;
+        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;';
+
+        const name = document.createElement('strong');
+        name.textContent = `${index + 1}. ${ship.name}`;
+        name.style.color = '#000';
+
+        const levelBadge = document.createElement('span');
+        levelBadge.className = `status-badge status-${getStatusClass(ship.risk)}`;
+        levelBadge.textContent = `Nível ${ship.level} - ${ship.risk}`;
+        levelBadge.style.fontSize = '12px';
+
+        header.appendChild(name);
+        header.appendChild(levelBadge);
+
+        const cost = document.createElement('div');
+        cost.style.cssText = 'font-size: 13px; color: #4D4D4D; margin-top: 4px;';
+        const symbol = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS.BRL : 'R$';
+        cost.textContent = `Custo estimado: ${symbol} ${ship.estimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+        const recommendation = document.createElement('div');
+        recommendation.style.cssText = 'font-size: 12px; color: #666; margin-top: 4px; font-style: italic;';
+        recommendation.textContent = `Recomendação: ${ship.recommendation}`;
+
+        shipCard.appendChild(header);
+        shipCard.appendChild(cost);
+        shipCard.appendChild(recommendation);
+        container.appendChild(shipCard);
+    });
+}
+
+/**
+ * Update distribution chart
+ */
+function updateDistributionChart(distribution) {
+    const canvas = document.getElementById('distributionChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const container = canvas.parentElement;
+    const width = container ? container.offsetWidth : 400;
+    const height = 200;
+    
+    // Set actual pixel dimensions (accounting for device pixel ratio)
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.scale(dpr, dpr);
+
+    const total = Object.values(distribution).reduce((sum, val) => sum + val, 0);
+    if (total === 0) {
+        ctx.fillStyle = '#4D4D4D';
+        ctx.font = '14px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('Nenhum dado disponível', width / 2, height / 2);
+        return;
+    }
+
+    const colors = {
+        0: '#1A932E', // Green - Clean
+        1: '#FFB74D', // Orange - Light
+        2: '#FFA726', // Orange - Moderate
+        3: '#EF5350'  // Red - Critical
+    };
+
+    const labels = {
+        0: 'Nível 0 (Limpo)',
+        1: 'Nível 1 (Leve)',
+        2: 'Nível 2 (Moderado)',
+        3: 'Nível 3 (Crítico)'
+    };
+
+    const padding = 40;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
+    const barWidth = chartWidth / 4;
+    const barPadding = barWidth * 0.2;
+    const maxValue = Math.max(...Object.values(distribution), 1);
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw bars
+    Object.keys(distribution).forEach((level, index) => {
+        const value = distribution[level];
+        const barHeight = maxValue > 0 ? (value / maxValue) * chartHeight : 0;
+        const x = padding + index * barWidth + barPadding / 2;
+        const y = height - padding - barHeight;
+        const actualBarWidth = barWidth - barPadding;
+
+        // Draw bar
+        ctx.fillStyle = colors[level] || '#4D4D4D';
+        ctx.fillRect(x, y, actualBarWidth, barHeight);
+
+        // Draw label
+        ctx.fillStyle = '#4D4D4D';
+        ctx.font = '11px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText(labels[level] || `Nível ${level}`, x + actualBarWidth / 2, height - padding + 15);
+
+        // Draw value
+        if (value > 0) {
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 12px Inter';
+            ctx.fillText(value.toString(), x + actualBarWidth / 2, y - 5);
+        }
+    });
+}
+
+// Handle window resize for distribution chart
+let resizeTimeout;
+window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(function() {
+        if (dashboardData.predictions && dashboardData.predictions.length > 0) {
+            const distribution = DataAnalyzer.calculateLevelDistribution(dashboardData.predictions);
+            updateDistributionChart(distribution);
+        }
+    }, 250);
+});
+
+/**
+ * Update recommendations
+ */
+function updateRecommendations(recommendations) {
+    const container = document.getElementById('recommendationsList');
+    const card = document.getElementById('recommendationsCard');
+    
+    if (!container || !card) return;
+
+    if (recommendations.length === 0) {
+        card.style.display = 'none';
+        return;
+    }
+
+    card.style.display = 'block';
+    container.innerHTML = '';
+
+    recommendations.forEach(rec => {
+        const recDiv = document.createElement('div');
+        recDiv.className = 'recommendation-item';
+        recDiv.style.cssText = `
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 4px solid ${rec.type === 'urgent' ? '#EF5350' : rec.type === 'cost' ? '#FFA726' : '#1A932E'};
+            background-color: ${rec.type === 'urgent' ? '#FFEBEE' : rec.type === 'cost' ? '#FFF3E0' : '#E8F5E9'};
+            border-radius: 4px;
+        `;
+
+        const title = document.createElement('strong');
+        title.textContent = rec.title;
+        title.style.display = 'block';
+        title.style.marginBottom = '4px';
+        title.style.color = '#000';
+
+        const message = document.createElement('div');
+        message.textContent = rec.message;
+        message.style.fontSize = '13px';
+        message.style.color = '#4D4D4D';
+        message.style.marginBottom = '4px';
+
+        recDiv.appendChild(title);
+        recDiv.appendChild(message);
+        container.appendChild(recDiv);
+    });
+}
+
+/**
+ * Update fleet proportions treemap
+ */
+function updateFleetProportions() {
+    if (!dashboardData.ships || dashboardData.ships.length === 0) {
+        return;
+    }
+
+    const proportions = DataAnalyzer.calculateFleetProportions(dashboardData.ships);
+    const container = document.getElementById('fleetProportionTreemap');
+    
+    if (!container) return;
+
+    const items = container.querySelectorAll('.treemap-item');
+    if (items.length >= 3) {
+        // Update clean
+        const cleanValue = items[0].querySelector('.treemap-value');
+        if (cleanValue) {
+            cleanValue.textContent = `${proportions.clean.toFixed(0)}%`;
+        }
+
+        // Update dirty
+        const dirtyValue = items[1].querySelector('.treemap-value');
+        if (dirtyValue) {
+            dirtyValue.textContent = `${proportions.dirty.toFixed(0)}%`;
+        }
+
+        // Update maintenance
+        const maintenanceValue = items[2].querySelector('.treemap-value');
+        if (maintenanceValue) {
+            maintenanceValue.textContent = `${proportions.maintenance.toFixed(0)}%`;
+        }
+    }
+}
+
+/**
+ * Update highlights with average biofouling level
+ */
+function updateHighlightsWithBiofouling(averageLevel) {
+    const avgBiofoulingEl = document.getElementById('avgBiofoulingLevel');
+    if (avgBiofoulingEl) {
+        if (averageLevel > 0) {
+            avgBiofoulingEl.textContent = averageLevel.toFixed(1);
+            const changeEl = document.getElementById('avgBiofoulingLevelChange');
+            if (changeEl) {
+                let status = '';
+                if (averageLevel <= 1) {
+                    status = 'Frota em bom estado';
+                    changeEl.className = 'card-change positive';
+                } else if (averageLevel <= 2) {
+                    status = 'Atenção necessária';
+                    changeEl.className = 'card-change';
+                } else {
+                    status = 'Ação urgente necessária';
+                    changeEl.className = 'card-change negative';
+                }
+                changeEl.innerHTML = `<span class="material-icons">${averageLevel <= 1 ? 'check_circle' : averageLevel <= 2 ? 'warning' : 'error'}</span> ${status}`;
+            }
+        } else {
+            avgBiofoulingEl.textContent = '-';
+        }
     }
 }
 

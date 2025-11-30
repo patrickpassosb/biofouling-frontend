@@ -1,7 +1,8 @@
 // UI Components Module
-// Load constants
-const CURRENCY_CODES = typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES : { BRL: 'BRL', USD: 'USD' };
-const CURRENCY_SYMBOLS = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS : { BRL: 'R$', USD: 'US$' };
+// Constants are imported from constants.js via script tag
+// Use fallback values if constants are not available
+const CURRENCY_CODES_FALLBACK = { BRL: 'BRL', USD: 'USD' };
+const CURRENCY_SYMBOLS_FALLBACK = { BRL: 'R$', USD: 'US$' };
 
 class UIComponents {
     /**
@@ -96,12 +97,15 @@ class UIComponents {
         }
 
         // Use constants for currency codes
-        const currency = impact.preferred_currency || CURRENCY_CODES.BRL;
-        const currencySymbol = CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS[CURRENCY_CODES.BRL];
+        const currencyCodes = typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES : CURRENCY_CODES_FALLBACK;
+        const currencySymbols = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS : CURRENCY_SYMBOLS_FALLBACK;
         
-        const totalCost = currency === CURRENCY_CODES.BRL ? impact.total_cost_brl : impact.total_cost_usd;
-        const extraCost = currency === CURRENCY_CODES.BRL ? impact.extra_cost_brl : impact.extra_cost_usd;
-        const euEtsCost = currency === CURRENCY_CODES.BRL ? impact.eu_ets_cost_brl : impact.eu_ets_cost_usd;
+        const currency = impact.preferred_currency || currencyCodes.BRL;
+        const currencySymbol = currencySymbols[currency] || currencySymbols[currencyCodes.BRL];
+
+        const totalCost = currency === currencyCodes.BRL ? impact.total_cost_brl : impact.total_cost_usd;
+        const extraCost = currency === currencyCodes.BRL ? impact.extra_cost_brl : impact.extra_cost_usd;
+        const euEtsCost = currency === currencyCodes.BRL ? impact.eu_ets_cost_brl : impact.eu_ets_cost_usd;
 
         // Create main container
         const analysisDiv = document.createElement('div');

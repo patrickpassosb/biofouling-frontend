@@ -14,6 +14,7 @@
     <script src="constants.js"></script>
     <script src="api.js"></script>
     <script src="components.js"></script>
+    <script src="data-analysis.js"></script>
 </head>
 
 <body>
@@ -128,6 +129,98 @@
                             </p>
                         </div>
                     </div>
+                    <div class="highlight-card">
+                        <div class="card-icon blue">
+                            <span class="material-icons">water_drop</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Nível médio de biofouling</p>
+                            <p class="card-value" id="avgBiofoulingLevel">-</p>
+                            <p class="card-change" id="avgBiofoulingLevelChange">
+                                <span class="material-icons">info</span>
+                                Baseado em predições
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Biofouling Analysis Section -->
+            <section class="biofouling-analysis-section">
+                <div class="section-header">
+                    <h2>Análise de Biofouling</h2>
+                    <p class="section-subtitle">Insights baseados em predições realizadas</p>
+                </div>
+                
+                <!-- Impact Summary Cards -->
+                <div class="highlights-grid" id="biofoulingImpactCards">
+                    <div class="highlight-card analysis-card">
+                        <div class="card-icon orange">
+                            <span class="material-icons">local_gas_station</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Combustível Extra Total</p>
+                            <p class="card-value" id="totalExtraFuel">0,00</p>
+                            <p class="card-sublabel">toneladas</p>
+                        </div>
+                    </div>
+                    <div class="highlight-card analysis-card">
+                        <div class="card-icon red">
+                            <span class="material-icons">attach_money</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Custo Total (BRL)</p>
+                            <p class="card-value" id="totalCostBRL">R$ 0,00</p>
+                            <p class="card-sublabel" id="totalCostUSD">US$ 0,00</p>
+                        </div>
+                    </div>
+                    <div class="highlight-card analysis-card">
+                        <div class="card-icon purple">
+                            <span class="material-icons">cloud</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">CO₂ Extra Total</p>
+                            <p class="card-value" id="totalExtraCO2">0,00</p>
+                            <p class="card-sublabel">toneladas</p>
+                        </div>
+                    </div>
+                    <div class="highlight-card analysis-card">
+                        <div class="card-icon blue">
+                            <span class="material-icons">speed</span>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Potência Extra Total</p>
+                            <p class="card-value" id="totalExtraPower">0</p>
+                            <p class="card-sublabel">kW</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Priority Ships and Distribution -->
+                <div class="details-grid biofouling-details-grid">
+                    <!-- Priority Ships List -->
+                    <div class="info-card">
+                        <h3>Navios Prioritários para Limpeza</h3>
+                        <div id="priorityShipsList">
+                            <p style="text-align: center; color: #4D4D4D; padding: 20px;">
+                                Carregando dados de priorização...
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Biofouling Level Distribution -->
+                    <div class="info-card">
+                        <h3>Distribuição de Níveis de Biofouling</h3>
+                        <div id="biofoulingDistribution">
+                            <canvas id="distributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="info-card recommendations-card" id="recommendationsCard" style="display: none;">
+                    <h3>Recomendações</h3>
+                    <div id="recommendationsList"></div>
                 </div>
             </section>
 
@@ -149,6 +242,7 @@
                                 <tr>
                                     <th>Navio</th>
                                     <th>Localização</th>
+                                    <th>Nível Biofouling</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -216,18 +310,18 @@
                     <!-- Fleet Status Proportion -->
                     <div class="info-card">
                         <h3>Proporção de status da frota</h3>
-                        <div class="treemap-container">
+                        <div class="treemap-container" id="fleetProportionTreemap">
                             <div class="treemap-item treemap-ok">
                                 <span class="treemap-label">Limpo</span>
-                                <span class="treemap-value">50%</span>
+                                <span class="treemap-value">0%</span>
                             </div>
                             <div class="treemap-item treemap-maintenance">
                                 <span class="treemap-label">Suja</span>
-                                <span class="treemap-value">30%</span>
+                                <span class="treemap-value">0%</span>
                             </div>
                             <div class="treemap-item treemap-late">
                                 <span class="treemap-label">Manutenção</span>
-                                <span class="treemap-value">11%</span>
+                                <span class="treemap-value">0%</span>
                             </div>
                         </div>
                     </div>
@@ -236,6 +330,22 @@
         </main>
     </div>
 
+    <!-- Embedded data for offline/file:// access -->
+    <script>
+        // Embed analise_biofouling.json data directly for file:// protocol support
+        const ANALISE_BIOFOULING_DATA = [
+            {"sessionId":40200000218,"startGMTDate":"2021-08-26 13:55:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":1.14,"Extra_Cost_USD":593.13,"Extra_Cost_BRL":3558.76,"Extra_CO2_Tons":3.55,"Total_Cost_USD":934.32,"Total_Cost_BRL":5605.94,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000237,"startGMTDate":"2021-08-30 10:00:00","shipName":"NAVIO TESTE 3","Biofouling_Level":3,"Risk_Category":"Critical","Action":"AGENDAR LIMPEZA IMEDIATA","Confidence":0.95,"Extra_Fuel_Tons":2.49,"Extra_Cost_USD":1296.38,"Extra_Cost_BRL":7778.28,"Extra_CO2_Tons":7.76,"Total_Cost_USD":2042.12,"Total_Cost_BRL":12252.75,"Power_Increase_Percent":106.67},
+            {"sessionId":40200000268,"startGMTDate":"2021-08-30 11:30:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":127.28,"Extra_Cost_USD":66184.65,"Extra_Cost_BRL":397107.92,"Extra_CO2_Tons":396.34,"Total_Cost_USD":104257.48,"Total_Cost_BRL":625544.9,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000294,"startGMTDate":"2021-09-07 08:10:00","shipName":"NAVIO TESTE 3","Biofouling_Level":3,"Risk_Category":"Critical","Action":"AGENDAR LIMPEZA IMEDIATA","Confidence":0.95,"Extra_Fuel_Tons":5.32,"Extra_Cost_USD":2764.63,"Extra_Cost_BRL":16587.77,"Extra_CO2_Tons":16.56,"Total_Cost_USD":4354.99,"Total_Cost_BRL":26129.91,"Power_Increase_Percent":106.67},
+            {"sessionId":40200000303,"startGMTDate":"2021-09-10 03:05:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":4.94,"Extra_Cost_USD":2568.77,"Extra_Cost_BRL":15412.6,"Extra_CO2_Tons":15.38,"Total_Cost_USD":4046.45,"Total_Cost_BRL":24278.73,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000305,"startGMTDate":"2021-09-10 05:00:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":149.25,"Extra_Cost_USD":77609.94,"Extra_Cost_BRL":465659.62,"Extra_CO2_Tons":464.76,"Total_Cost_USD":122255.18,"Total_Cost_BRL":733531.0600000001,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000323,"startGMTDate":"2021-09-11 22:30:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":3.49,"Extra_Cost_USD":1813.74,"Extra_Cost_BRL":10882.42,"Extra_CO2_Tons":10.86,"Total_Cost_USD":2857.09,"Total_Cost_BRL":17142.55,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000360,"startGMTDate":"2021-09-14 23:00:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":89.83,"Extra_Cost_USD":46713.54,"Extra_Cost_BRL":280281.25,"Extra_CO2_Tons":279.74,"Total_Cost_USD":73585.58,"Total_Cost_BRL":441513.49,"Power_Increase_Percent":55.88},
+            {"sessionId":40200000377,"startGMTDate":"2021-09-15 08:20:00","shipName":"NAVIO TESTE 3","Biofouling_Level":3,"Risk_Category":"Critical","Action":"AGENDAR LIMPEZA IMEDIATA","Confidence":0.95,"Extra_Fuel_Tons":0.25,"Extra_Cost_USD":129.17,"Extra_Cost_BRL":775.03,"Extra_CO2_Tons":0.77,"Total_Cost_USD":203.48,"Total_Cost_BRL":1220.86,"Power_Increase_Percent":106.67},
+            {"sessionId":40200000383,"startGMTDate":"2021-09-16 01:55:00","shipName":"NAVIO TESTE 3","Biofouling_Level":2,"Risk_Category":"High","Action":"MANTER MONITORAMENTO","Confidence":0.95,"Extra_Fuel_Tons":0.78,"Extra_Cost_USD":406.4,"Extra_Cost_BRL":2438.37,"Extra_CO2_Tons":2.43,"Total_Cost_USD":640.17,"Total_Cost_BRL":3841.05,"Power_Increase_Percent":55.88}
+        ];
+    </script>
     <script src="script.js"></script>
     <script src="dashboard-integration.js"></script>
 </body>
