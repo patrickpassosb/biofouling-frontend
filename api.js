@@ -2,8 +2,13 @@
 class BiofoulingAPI {
     constructor() {
         this.baseURL = API_CONFIG.getBaseURL();
-        this.retryAttempts = 3;
-        this.retryDelay = 1000; // milliseconds
+        // Use constants if available, otherwise fallback to defaults
+        this.retryAttempts = typeof API_CONFIG_CONSTANTS !== 'undefined' 
+            ? API_CONFIG_CONSTANTS.RETRY_ATTEMPTS 
+            : 3;
+        this.retryDelay = typeof API_CONFIG_CONSTANTS !== 'undefined' 
+            ? API_CONFIG_CONSTANTS.RETRY_DELAY_MS 
+            : 1000; // milliseconds
     }
 
     /**
@@ -97,8 +102,14 @@ class BiofoulingAPI {
     /**
      * Prediction with impact analysis (recommended)
      */
-    async predictWithImpact(voyageData, fuelType = API_CONFIG.defaults.fuelType, currency = API_CONFIG.defaults.currency) {
+    async predictWithImpact(voyageData, fuelType = null, currency = null) {
         try {
+            // Use constants if available, otherwise use API_CONFIG defaults
+            const defaultFuelType = fuelType || (typeof FUEL_TYPES !== 'undefined' ? FUEL_TYPES.LSHFO : API_CONFIG.defaults.fuelType);
+            const defaultCurrency = currency || (typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES.BRL : API_CONFIG.defaults.currency);
+            
+            fuelType = defaultFuelType;
+            currency = defaultCurrency;
             const queryParams = new URLSearchParams({
                 fuel_type: fuelType,
                 currency: currency

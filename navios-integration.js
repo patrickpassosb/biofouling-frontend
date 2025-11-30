@@ -49,24 +49,60 @@ async function handlePredictionSubmit(event) {
     try {
         // Collect form data
         const formData = new FormData(form);
+        
+        // Parse and validate numeric fields
+        const parseAndValidateFloat = (value, fieldName, min = null, max = null) => {
+            const parsed = parseFloat(value);
+            if (isNaN(parsed)) {
+                throw new ValidationError(`${fieldName} deve ser um número válido`);
+            }
+            if (min !== null && parsed < min) {
+                throw new ValidationError(`${fieldName} deve ser maior ou igual a ${min}`);
+            }
+            if (max !== null && parsed > max) {
+                throw new ValidationError(`${fieldName} deve ser menor ou igual a ${max}`);
+            }
+            return parsed;
+        };
+
+        const parseAndValidateInt = (value, fieldName, min = null, max = null) => {
+            const parsed = parseInt(value);
+            if (isNaN(parsed)) {
+                throw new ValidationError(`${fieldName} deve ser um número inteiro válido`);
+            }
+            if (min !== null && parsed < min) {
+                throw new ValidationError(`${fieldName} deve ser maior ou igual a ${min}`);
+            }
+            if (max !== null && parsed > max) {
+                throw new ValidationError(`${fieldName} deve ser menor ou igual a ${max}`);
+            }
+            return parsed;
+        };
+
         const voyageData = {
-            shipName: formData.get('shipName'),
-            speed: parseFloat(formData.get('speed')),
-            duration: parseFloat(formData.get('duration')),
-            distance: parseFloat(formData.get('distance')),
-            beaufortScale: parseInt(formData.get('beaufortScale')),
-            Area_Molhada: parseFloat(formData.get('Area_Molhada')),
-            MASSA_TOTAL_TON: parseFloat(formData.get('MASSA_TOTAL_TON')),
-            TIPO_COMBUSTIVEL_PRINCIPAL: formData.get('TIPO_COMBUSTIVEL_PRINCIPAL'),
-            decLatitude: parseFloat(formData.get('decLatitude')),
-            decLongitude: parseFloat(formData.get('decLongitude')),
-            DiasDesdeUltimaLimpeza: parseFloat(formData.get('DiasDesdeUltimaLimpeza'))
+            shipName: formData.get('shipName')?.trim() || '',
+            speed: parseAndValidateFloat(formData.get('speed'), 'Velocidade', 0, 50),
+            duration: parseAndValidateFloat(formData.get('duration'), 'Duração', 0),
+            distance: parseAndValidateFloat(formData.get('distance'), 'Distância', 0),
+            beaufortScale: parseAndValidateInt(formData.get('beaufortScale'), 'Escala Beaufort', 0, 12),
+            Area_Molhada: parseAndValidateFloat(formData.get('Area_Molhada'), 'Área Molhada', 0),
+            MASSA_TOTAL_TON: parseAndValidateFloat(formData.get('MASSA_TOTAL_TON'), 'Massa Total', 0),
+            TIPO_COMBUSTIVEL_PRINCIPAL: formData.get('TIPO_COMBUSTIVEL_PRINCIPAL') || '',
+            decLatitude: parseAndValidateFloat(formData.get('decLatitude'), 'Latitude', -90, 90),
+            decLongitude: parseAndValidateFloat(formData.get('decLongitude'), 'Longitude', -180, 180),
+            DiasDesdeUltimaLimpeza: parseAndValidateFloat(formData.get('DiasDesdeUltimaLimpeza'), 'Dias desde última limpeza', 0)
         };
         
-        const currency = formData.get('currency') || 'BRL';
+        // Validate ship name
+        if (!voyageData.shipName) {
+            throw new ValidationError('Nome do navio é obrigatório');
+        }
+        
+        // Use constants for currency
+        const currency = formData.get('currency') || (typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES.BRL : 'BRL');
         const fuelType = voyageData.TIPO_COMBUSTIVEL_PRINCIPAL;
         
-        // Validate data
+        // Validate data with API validator
         api.validateVoyageData(voyageData);
         
         // Make prediction
@@ -137,12 +173,13 @@ function displayPredictionResult(result, container) {
         result.risk_category
     );
     
-    // Recommendation
+    // Recommendation - SECURITY: Use textContent instead of innerHTML
     const recommendation = document.createElement('div');
     recommendation.className = 'recommendation';
-    recommendation.innerHTML = `
-        <strong>Recomendação:</strong> ${result.recommended_action}
-    `;
+    const strong = document.createElement('strong');
+    strong.textContent = 'Recomendação:';
+    recommendation.appendChild(strong);
+    recommendation.appendChild(document.createTextNode(' ' + (result.recommended_action || 'N/A')));
     
     predictionDiv.appendChild(header);
     predictionDiv.appendChild(indicator);
@@ -266,6 +303,64 @@ function createShipCard(ship, riskClass) {
     return card;
 }
 
+/**
+ * Safe localStorage setItem with QuotaExceededError handling
+ */
+function safeLocalStorageSetItem(key, value) {
+    const maxRetries = 3;
+    let retries = 0;
+    
+    while (retries < maxRetries) {
+        try {
+            localStorage.setItem(key, value);
+            return true;
+        } catch (e) {
+            if (e.name === 'QuotaExceededError' || e.code === 22) {
+                retries++;
+                
+                // Try to clear old data
+                if (key === 'biofouling_predictions') {
+                    try {
+                        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                        // Remove oldest 25% of predictions
+                        const toRemove = Math.max(1, Math.floor(existing.length * 0.25));
+                        const cleaned = existing.slice(toRemove);
+                        localStorage.setItem(key, JSON.stringify(cleaned));
+                        // Try again with smaller data
+                        continue;
+                    } catch (clearError) {
+                        console.error('Error clearing old predictions:', clearError);
+                    }
+                } else if (key === 'biofouling_dashboard_data') {
+                    try {
+                        const existing = JSON.parse(localStorage.getItem(key) || '{"ships":[],"predictions":[]}');
+                        // Remove oldest 25% of predictions
+                        if (existing.predictions && existing.predictions.length > 0) {
+                            const toRemove = Math.max(1, Math.floor(existing.predictions.length * 0.25));
+                            existing.predictions = existing.predictions.slice(toRemove);
+                            localStorage.setItem(key, JSON.stringify(existing));
+                            continue;
+                        }
+                    } catch (clearError) {
+                        console.error('Error clearing old dashboard data:', clearError);
+                    }
+                }
+                
+                // If still failing, show error to user
+                if (retries >= maxRetries) {
+                    console.error('Failed to save data after retries. Storage quota exceeded.');
+                    showError('Não foi possível salvar os dados. O armazenamento local está cheio. Por favor, limpe alguns dados antigos.');
+                    return false;
+                }
+            } else {
+                // Other errors, rethrow
+                throw e;
+            }
+        }
+    }
+    return false;
+}
+
 function savePredictionToStorage(result) {
     try {
         let predictions = [];
@@ -274,11 +369,18 @@ function savePredictionToStorage(result) {
             predictions = JSON.parse(saved);
         }
         predictions.push(result);
-        // Keep only last 100 predictions
-        if (predictions.length > 100) {
-            predictions = predictions.slice(-100);
+        // Keep only last 100 predictions (use constant if available)
+        const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
+            ? STORAGE_CONFIG.MAX_PREDICTIONS 
+            : 100;
+        if (predictions.length > maxPredictions) {
+            predictions = predictions.slice(-maxPredictions);
         }
-        localStorage.setItem('biofouling_predictions', JSON.stringify(predictions));
+        
+        // Use safe storage setter
+        if (!safeLocalStorageSetItem('biofouling_predictions', JSON.stringify(predictions))) {
+            return; // Failed to save, error already shown
+        }
         
         // Also update dashboard data
         let dashboardData = { ships: [], predictions: [] };
@@ -287,10 +389,10 @@ function savePredictionToStorage(result) {
             dashboardData = JSON.parse(dashboardSaved);
         }
         
-        // Add prediction and LIMIT to 100
+        // Add prediction and LIMIT to maxPredictions
         dashboardData.predictions.push(result);
-        if (dashboardData.predictions.length > 100) {
-            dashboardData.predictions = dashboardData.predictions.slice(-100);
+        if (dashboardData.predictions.length > maxPredictions) {
+            dashboardData.predictions = dashboardData.predictions.slice(-maxPredictions);
         }
         
         const shipData = {
@@ -302,9 +404,14 @@ function savePredictionToStorage(result) {
         };
         dashboardData.ships = dashboardData.ships.filter(s => s.id !== shipData.id);
         dashboardData.ships.push(shipData);
-        localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+        
+        // Use safe storage setter
+        safeLocalStorageSetItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
     } catch (error) {
         console.error('Error saving prediction:', error);
+        if (error.name === 'QuotaExceededError' || error.code === 22) {
+            showError('Armazenamento local cheio. Alguns dados podem não ser salvos.');
+        }
     }
 }
 

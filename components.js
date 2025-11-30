@@ -1,4 +1,8 @@
 // UI Components Module
+// Load constants
+const CURRENCY_CODES = typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES : { BRL: 'BRL', USD: 'USD' };
+const CURRENCY_SYMBOLS = typeof CURRENCY_SYMBOLS !== 'undefined' ? CURRENCY_SYMBOLS : { BRL: 'R$', USD: 'US$' };
+
 class UIComponents {
     /**
      * Create loading spinner
@@ -78,121 +82,133 @@ class UIComponents {
 
     /**
      * Display impact analysis results
+     * SECURITY: Uses createElement/textContent instead of innerHTML to prevent XSS
      */
     static displayImpactAnalysis(impact, container) {
+        // Clear container
+        container.innerHTML = '';
+        
         if (!impact) {
-            container.innerHTML = '<p>Nenhuma análise de impacto disponível.</p>';
+            const noData = document.createElement('p');
+            noData.textContent = 'Nenhuma análise de impacto disponível.';
+            container.appendChild(noData);
             return;
         }
 
-        const currency = impact.preferred_currency || 'BRL';
-        const currencySymbol = currency === 'BRL' ? 'R$' : 'US$';
+        // Use constants for currency codes
+        const currency = impact.preferred_currency || CURRENCY_CODES.BRL;
+        const currencySymbol = CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS[CURRENCY_CODES.BRL];
         
-        const totalCost = currency === 'BRL' ? impact.total_cost_brl : impact.total_cost_usd;
-        const extraCost = currency === 'BRL' ? impact.extra_cost_brl : impact.extra_cost_usd;
-        const euEtsCost = currency === 'BRL' ? impact.eu_ets_cost_brl : impact.eu_ets_cost_usd;
+        const totalCost = currency === CURRENCY_CODES.BRL ? impact.total_cost_brl : impact.total_cost_usd;
+        const extraCost = currency === CURRENCY_CODES.BRL ? impact.extra_cost_brl : impact.extra_cost_usd;
+        const euEtsCost = currency === CURRENCY_CODES.BRL ? impact.eu_ets_cost_brl : impact.eu_ets_cost_usd;
 
-        container.innerHTML = `
-            <div class="impact-analysis">
-                <h3>Análise de Impacto</h3>
-                
-                <!-- Power Section -->
-                <section class="impact-section">
-                    <h4>
-                        <span class="material-icons">speed</span>
-                        Potência
-                    </h4>
-                    <div class="impact-metrics">
-                        <div class="metric-item">
-                            <span class="metric-label">Base (casco limpo):</span>
-                            <span class="metric-value">${impact.base_power_kw.toLocaleString('pt-BR')} kW</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Com Fouling:</span>
-                            <span class="metric-value">${impact.fouled_power_kw.toLocaleString('pt-BR')} kW</span>
-                        </div>
-                        <div class="metric-item highlight">
-                            <span class="metric-label">Aumento:</span>
-                            <span class="metric-value">+${impact.delta_power_percent.toFixed(1)}% (+${impact.delta_power_kw.toLocaleString('pt-BR')} kW)</span>
-                        </div>
-                    </div>
-                </section>
+        // Create main container
+        const analysisDiv = document.createElement('div');
+        analysisDiv.className = 'impact-analysis';
 
-                <!-- Fuel Section -->
-                <section class="impact-section">
-                    <h4>
-                        <span class="material-icons">local_gas_station</span>
-                        Combustível
-                    </h4>
-                    <div class="impact-metrics">
-                        <div class="metric-item">
-                            <span class="metric-label">Consumo Base:</span>
-                            <span class="metric-value">${impact.base_fuel_tons.toFixed(2)} toneladas</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Consumo Extra:</span>
-                            <span class="metric-value">${impact.extra_fuel_tons.toFixed(2)} toneladas</span>
-                        </div>
-                        <div class="metric-item highlight">
-                            <span class="metric-label">Aumento:</span>
-                            <span class="metric-value">+${impact.extra_fuel_percent.toFixed(1)}%</span>
-                        </div>
-                    </div>
-                </section>
+        // Title
+        const title = document.createElement('h3');
+        title.textContent = 'Análise de Impacto';
+        analysisDiv.appendChild(title);
 
-                <!-- Costs Section -->
-                <section class="impact-section">
-                    <h4>
-                        <span class="material-icons">attach_money</span>
-                        Custos (${currency})
-                    </h4>
-                    <div class="impact-metrics">
-                        <div class="metric-item">
-                            <span class="metric-label">OPEX:</span>
-                            <span class="metric-value">${currencySymbol} ${extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">EU ETS:</span>
-                            <span class="metric-value">${currencySymbol} ${euEtsCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div class="metric-item highlight">
-                            <span class="metric-label">Total:</span>
-                            <span class="metric-value">${currencySymbol} ${totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-                </section>
+        // Helper function to create metric item
+        const createMetricItem = (label, value, isHighlight = false) => {
+            const item = document.createElement('div');
+            item.className = isHighlight ? 'metric-item highlight' : 'metric-item';
+            
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'metric-label';
+            labelSpan.textContent = label;
+            
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'metric-value';
+            valueSpan.textContent = value;
+            
+            item.appendChild(labelSpan);
+            item.appendChild(valueSpan);
+            return item;
+        };
 
-                <!-- CO₂ Section -->
-                <section class="impact-section">
-                    <h4>
-                        <span class="material-icons">cloud</span>
-                        Emissões
-                    </h4>
-                    <div class="impact-metrics">
-                        <div class="metric-item highlight">
-                            <span class="metric-label">CO₂ Extra:</span>
-                            <span class="metric-value">${impact.extra_co2_tons.toFixed(2)} toneladas</span>
-                        </div>
-                    </div>
-                </section>
+        // Helper function to create section
+        const createSection = (titleText, iconName, metrics) => {
+            const section = document.createElement('section');
+            section.className = 'impact-section';
+            
+            const h4 = document.createElement('h4');
+            const icon = document.createElement('span');
+            icon.className = 'material-icons';
+            icon.textContent = iconName;
+            h4.appendChild(icon);
+            h4.appendChild(document.createTextNode(' ' + titleText));
+            section.appendChild(h4);
+            
+            const metricsDiv = document.createElement('div');
+            metricsDiv.className = 'impact-metrics';
+            metrics.forEach(metric => {
+                metricsDiv.appendChild(createMetricItem(metric.label, metric.value, metric.highlight));
+            });
+            section.appendChild(metricsDiv);
+            
+            return section;
+        };
 
-                <!-- Metadata Section -->
-                <section class="impact-metadata">
-                    <div class="metadata-item">
-                        <strong>Tipo de Biofouling:</strong> ${impact.biofouling_description}
-                    </div>
-                    <div class="metadata-item">
-                        <strong>Tipo de Combustível:</strong> ${impact.fuel_type}
-                    </div>
-                    <div class="metadata-item">
-                        <strong>Rugosidade (ks):</strong> ${impact.ks_range_um[0]} - ${impact.ks_range_um[1]} μm
-                    </div>
-                    <div class="metadata-item">
-                        <small>Taxa de câmbio: ${impact.exchange_rate_used}</small>
-                    </div>
-                </section>
-            </div>
-        `;
+        // Power Section
+        analysisDiv.appendChild(createSection('Potência', 'speed', [
+            { label: 'Base (casco limpo):', value: `${impact.base_power_kw.toLocaleString('pt-BR')} kW` },
+            { label: 'Com Fouling:', value: `${impact.fouled_power_kw.toLocaleString('pt-BR')} kW` },
+            { label: 'Aumento:', value: `+${impact.delta_power_percent.toFixed(1)}% (+${impact.delta_power_kw.toLocaleString('pt-BR')} kW)`, highlight: true }
+        ]));
+
+        // Fuel Section
+        analysisDiv.appendChild(createSection('Combustível', 'local_gas_station', [
+            { label: 'Consumo Base:', value: `${impact.base_fuel_tons.toFixed(2)} toneladas` },
+            { label: 'Consumo Extra:', value: `${impact.extra_fuel_tons.toFixed(2)} toneladas` },
+            { label: 'Aumento:', value: `+${impact.extra_fuel_percent.toFixed(1)}%`, highlight: true }
+        ]));
+
+        // Costs Section
+        analysisDiv.appendChild(createSection(`Custos (${currency})`, 'attach_money', [
+            { label: 'OPEX:', value: `${currencySymbol} ${extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+            { label: 'EU ETS:', value: `${currencySymbol} ${euEtsCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+            { label: 'Total:', value: `${currencySymbol} ${totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, highlight: true }
+        ]));
+
+        // CO₂ Section
+        analysisDiv.appendChild(createSection('Emissões', 'cloud', [
+            { label: 'CO₂ Extra:', value: `${impact.extra_co2_tons.toFixed(2)} toneladas`, highlight: true }
+        ]));
+
+        // Metadata Section
+        const metadataSection = document.createElement('section');
+        metadataSection.className = 'impact-metadata';
+        
+        const createMetadataItem = (label, value) => {
+            const item = document.createElement('div');
+            item.className = 'metadata-item';
+            const strong = document.createElement('strong');
+            strong.textContent = label;
+            item.appendChild(strong);
+            item.appendChild(document.createTextNode(' ' + value));
+            return item;
+        };
+
+        metadataSection.appendChild(createMetadataItem('Tipo de Biofouling:', impact.biofouling_description || 'N/A'));
+        metadataSection.appendChild(createMetadataItem('Tipo de Combustível:', impact.fuel_type || 'N/A'));
+        
+        if (impact.ks_range_um && Array.isArray(impact.ks_range_um) && impact.ks_range_um.length >= 2) {
+            metadataSection.appendChild(createMetadataItem('Rugosidade (ks):', `${impact.ks_range_um[0]} - ${impact.ks_range_um[1]} μm`));
+        }
+        
+        const exchangeRateItem = document.createElement('div');
+        exchangeRateItem.className = 'metadata-item';
+        const small = document.createElement('small');
+        small.textContent = `Taxa de câmbio: ${impact.exchange_rate_used || 'N/A'}`;
+        exchangeRateItem.appendChild(small);
+        metadataSection.appendChild(exchangeRateItem);
+        
+        analysisDiv.appendChild(metadataSection);
+        container.appendChild(analysisDiv);
     }
 
     /**
@@ -219,12 +235,14 @@ class UIComponents {
      * Get risk class name
      */
     static getRiskClass(riskCategory) {
-        const mapping = {
-            'Low': 'clean',
-            'Medium': 'moderate',
-            'High': 'high',
-            'Critical': 'critical'
-        };
+        const mapping = typeof RISK_CATEGORY_MAPPINGS !== 'undefined' && RISK_CATEGORY_MAPPINGS?.class
+            ? RISK_CATEGORY_MAPPINGS.class
+            : {
+                'Low': 'clean',
+                'Medium': 'moderate',
+                'High': 'high',
+                'Critical': 'critical'
+            };
         return mapping[riskCategory] || 'moderate';
     }
 
@@ -232,12 +250,14 @@ class UIComponents {
      * Get risk icon
      */
     static getRiskIcon(riskCategory) {
-        const mapping = {
-            'Low': 'check_circle',
-            'Medium': 'warning',
-            'High': 'warning',
-            'Critical': 'error'
-        };
+        const mapping = typeof RISK_CATEGORY_MAPPINGS !== 'undefined' && RISK_CATEGORY_MAPPINGS?.icon
+            ? RISK_CATEGORY_MAPPINGS.icon
+            : {
+                'Low': 'check_circle',
+                'Medium': 'warning',
+                'High': 'warning',
+                'Critical': 'error'
+            };
         return mapping[riskCategory] || 'warning';
     }
 
@@ -245,12 +265,14 @@ class UIComponents {
      * Get risk text
      */
     static getRiskText(level, riskCategory) {
-        const levelText = {
-            0: 'Hidraulicamente Liso',
-            1: 'Slime Leve / Biofilme',
-            2: 'Incrustação Calcária Média',
-            3: 'Incrustação Calcária Pesada'
-        };
+        const levelText = typeof BIOFOULING_LEVEL_DESCRIPTIONS !== 'undefined'
+            ? BIOFOULING_LEVEL_DESCRIPTIONS
+            : {
+                0: 'Hidraulicamente Liso',
+                1: 'Slime Leve / Biofilme',
+                2: 'Incrustação Calcária Média',
+                3: 'Incrustação Calcária Pesada'
+            };
         
         const levelDesc = levelText[level] || `Nível ${level}`;
         return `Nível ${level} - ${levelDesc} (${riskCategory})`;

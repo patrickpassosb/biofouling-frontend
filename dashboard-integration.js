@@ -36,9 +36,12 @@ async function loadDashboardData() {
         const savedData = localStorage.getItem('biofouling_dashboard_data');
         if (savedData) {
             dashboardData = JSON.parse(savedData);
-            // Ensure predictions are limited to 100 (safety check)
-            if (dashboardData.predictions && dashboardData.predictions.length > 100) {
-                dashboardData.predictions = dashboardData.predictions.slice(-100);
+            // Ensure predictions are limited (safety check)
+            const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
+                ? STORAGE_CONFIG.MAX_PREDICTIONS 
+                : 100;
+            if (dashboardData.predictions && dashboardData.predictions.length > maxPredictions) {
+                dashboardData.predictions = dashboardData.predictions.slice(-maxPredictions);
                 localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
             }
         } else {
@@ -46,8 +49,11 @@ async function loadDashboardData() {
             const predictions = localStorage.getItem('biofouling_predictions');
             if (predictions) {
                 const preds = JSON.parse(predictions);
-                // Limit to 100 (safety check)
-                dashboardData.predictions = preds.length > 100 ? preds.slice(-100) : preds;
+                // Limit to max predictions (safety check)
+                const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
+                    ? STORAGE_CONFIG.MAX_PREDICTIONS 
+                    : 100;
+                dashboardData.predictions = preds.length > maxPredictions ? preds.slice(-maxPredictions) : preds;
                 // Extract unique ships
                 const shipsMap = new Map();
                 preds.forEach(pred => {
@@ -98,7 +104,8 @@ function updateHighlights() {
     const totalSavingsChangeEl = document.getElementById('totalSavingsChange');
     if (totalSavingsEl) {
         const savings = calculateTotalSavings();
-        totalSavingsEl.textContent = formatCurrency(savings, 'BRL');
+        const defaultCurrency = typeof CURRENCY_CODES !== 'undefined' ? CURRENCY_CODES.BRL : 'BRL';
+        totalSavingsEl.textContent = formatCurrency(savings, defaultCurrency);
         if (totalSavingsChangeEl) {
             totalSavingsChangeEl.textContent = 'Baseado em predições recentes';
         }
@@ -184,22 +191,26 @@ function updateStatusTable() {
 }
 
 function getStatusClass(riskCategory) {
-    const mapping = {
-        'Low': 'ok',
-        'Medium': 'maintenance',
-        'High': 'late',
-        'Critical': 'late'
-    };
+    const mapping = typeof RISK_CATEGORY_MAPPINGS !== 'undefined' && RISK_CATEGORY_MAPPINGS?.status
+        ? RISK_CATEGORY_MAPPINGS.status
+        : {
+            'Low': 'ok',
+            'Medium': 'maintenance',
+            'High': 'late',
+            'Critical': 'late'
+        };
     return mapping[riskCategory] || 'maintenance';
 }
 
 function getStatusText(riskCategory) {
-    const mapping = {
-        'Low': 'Limpo',
-        'Medium': 'Moderado',
-        'High': 'Suja',
-        'Critical': 'Suja'
-    };
+    const mapping = typeof RISK_CATEGORY_MAPPINGS !== 'undefined' && RISK_CATEGORY_MAPPINGS?.text
+        ? RISK_CATEGORY_MAPPINGS.text
+        : {
+            'Low': 'Limpo',
+            'Medium': 'Moderado',
+            'High': 'Suja',
+            'Critical': 'Suja'
+        };
     return mapping[riskCategory] || 'Desconhecido';
 }
 
@@ -255,7 +266,9 @@ function calculateMaintenanceData() {
 }
 
 function formatCurrency(value, currency) {
-    const symbol = currency === 'BRL' ? 'R$' : 'US$';
+    const symbol = typeof CURRENCY_SYMBOLS !== 'undefined' 
+        ? (CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS[CURRENCY_CODES.BRL])
+        : (currency === 'BRL' ? 'R$' : 'US$');
     return `${symbol} ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

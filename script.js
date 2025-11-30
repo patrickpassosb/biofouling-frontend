@@ -49,12 +49,18 @@ function renderMaintenanceChart(customData = null) {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
     
+    // Store bar positions for hover detection (single listener approach)
+    const barPositions = [];
+    
     // Draw bars
     data.forEach((value, index) => {
         const barHeight = (value / maxValue) * chartHeight;
         const x = padding + index * barWidth + barPadding / 2;
         const y = height - padding - barHeight;
         const actualBarWidth = barWidth - barPadding;
+        
+        // Store bar position for hover detection
+        barPositions.push({ x, y, width: actualBarWidth, height: barHeight });
         
         // Create gradient
         const gradient = ctx.createLinearGradient(0, y, 0, height - padding);
@@ -66,19 +72,31 @@ function renderMaintenanceChart(customData = null) {
         ctx.beginPath();
         ctx.roundRect(x, y, actualBarWidth, barHeight, [4, 4, 0, 0]);
         ctx.fill();
-        
-        // Add hover effect data
-        canvas.addEventListener('mousemove', function(e) {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            
-            if (mouseX >= x && mouseX <= x + actualBarWidth && 
-                mouseY >= y && mouseY <= height - padding) {
-                canvas.style.cursor = 'pointer';
-            }
-        });
     });
+    
+    // Single delegated mousemove listener (prevents memory leak)
+    // Remove existing listener if any
+    if (canvas._chartMouseMoveHandler) {
+        canvas.removeEventListener('mousemove', canvas._chartMouseMoveHandler);
+    }
+    
+    canvas._chartMouseMoveHandler = function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Check if mouse is over any bar
+        const isOverBar = barPositions.some(bar => 
+            mouseX >= bar.x && 
+            mouseX <= bar.x + bar.width && 
+            mouseY >= bar.y && 
+            mouseY <= height - padding
+        );
+        
+        canvas.style.cursor = isOverBar ? 'pointer' : 'default';
+    };
+    
+    canvas.addEventListener('mousemove', canvas._chartMouseMoveHandler);
     
     // Draw X-axis labels
     ctx.fillStyle = '#4D4D4D';
@@ -202,10 +220,25 @@ function addInteractivity() {
     });
 }
 
-// Resize chart on window resize
-window.addEventListener('resize', () => {
+// Debounce utility function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Resize chart on window resize with debounce (prevents excessive re-renders)
+const debouncedRenderChart = debounce(() => {
     renderMaintenanceChart();
-});
+}, 250); // Wait 250ms after resize stops
+
+window.addEventListener('resize', debouncedRenderChart);
 
 // Add ripple CSS dynamically
 const style = document.createElement('style');
