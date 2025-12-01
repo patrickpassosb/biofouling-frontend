@@ -150,6 +150,18 @@ async function loadFromJSONFile() {
             return;
         }
         
+        // Detect if all items have the same shipName but different sessionIds
+        // If so, we'll generate unique names using sessionId
+        const firstShipName = jsonData[0]?.shipName;
+        const allSameName = jsonData.length > 0 && jsonData.every(item => item.shipName === firstShipName);
+        const uniqueSessionIds = new Set(jsonData.map(item => item.sessionId)).size;
+        const hasMultipleSessionIds = uniqueSessionIds > 1;
+        const shouldGenerateUniqueNames = allSameName && hasMultipleSessionIds;
+        
+        if (shouldGenerateUniqueNames) {
+            console.log(`Detected ${jsonData.length} events with same ship name but different sessionIds. Generating unique names.`);
+        }
+        
         // Convert JSON format to dashboard format
         const predictions = jsonData.map(item => {
             // Calculate delta_power_kw from Power_Increase_Percent
@@ -162,8 +174,13 @@ async function loadFromJSONFile() {
             const powerIncreasePercent = item.Power_Increase_Percent || 0;
             const deltaPowerKw = (powerIncreasePercent / 100) * estimatedBasePower;
             
+            // Generate unique ship name if needed
+            const shipName = shouldGenerateUniqueNames 
+                ? `${item.shipName} (${item.sessionId})`
+                : item.shipName;
+            
             return {
-                ship_id: item.shipName,
+                ship_id: shipName,
                 biofouling_level: item.Biofouling_Level,
                 risk_category: item.Risk_Category,
                 confidence: item.Confidence,
@@ -235,6 +252,18 @@ async function loadFromJSONFile() {
             console.log('Attempting to use embedded data as last resort');
             // Recursive call with embedded data
             const jsonData = ANALISE_BIOFOULING_DATA;
+            
+            // Detect if all items have the same shipName but different sessionIds
+            const firstShipName = jsonData[0]?.shipName;
+            const allSameName = jsonData.length > 0 && jsonData.every(item => item.shipName === firstShipName);
+            const uniqueSessionIds = new Set(jsonData.map(item => item.sessionId)).size;
+            const hasMultipleSessionIds = uniqueSessionIds > 1;
+            const shouldGenerateUniqueNames = allSameName && hasMultipleSessionIds;
+            
+            if (shouldGenerateUniqueNames) {
+                console.log(`Detected ${jsonData.length} events with same ship name but different sessionIds. Generating unique names.`);
+            }
+            
             // Process the data (same conversion logic)
             const predictions = jsonData.map(item => {
                 const extraFuelTons = item.Extra_Fuel_Tons || 0;
@@ -242,8 +271,13 @@ async function loadFromJSONFile() {
                 const powerIncreasePercent = item.Power_Increase_Percent || 0;
                 const deltaPowerKw = (powerIncreasePercent / 100) * estimatedBasePower;
                 
+                // Generate unique ship name if needed
+                const shipName = shouldGenerateUniqueNames 
+                    ? `${item.shipName} (${item.sessionId})`
+                    : item.shipName;
+                
                 return {
-                    ship_id: item.shipName,
+                    ship_id: shipName,
                     biofouling_level: item.Biofouling_Level,
                     risk_category: item.Risk_Category,
                     confidence: item.Confidence,
