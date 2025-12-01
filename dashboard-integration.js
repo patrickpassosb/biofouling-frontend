@@ -36,19 +36,46 @@ async function loadDashboardData() {
     try {
         const savedData = localStorage.getItem('biofouling_dashboard_data');
         if (savedData) {
-            dashboardData = JSON.parse(savedData);
-            // Ensure predictions are limited (safety check)
-            const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
-                ? STORAGE_CONFIG.MAX_PREDICTIONS 
-                : 100;
-            if (dashboardData.predictions && dashboardData.predictions.length > maxPredictions) {
-                dashboardData.predictions = dashboardData.predictions.slice(-maxPredictions);
-                localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+            try {
+                dashboardData = JSON.parse(savedData);
+                // Ensure predictions are limited (safety check)
+                const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
+                    ? STORAGE_CONFIG.MAX_PREDICTIONS 
+                    : 100;
+                if (dashboardData.predictions && dashboardData.predictions.length > maxPredictions) {
+                    dashboardData.predictions = dashboardData.predictions.slice(-maxPredictions);
+                    localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+                }
+                // If we have valid data, use it but still try to refresh from source in background
+                if (dashboardData.predictions && dashboardData.predictions.length > 0) {
+                    console.log('Loaded data from localStorage:', dashboardData.predictions.length, 'predictions');
+                    // Still try to load fresh data in background (non-blocking) to ensure it's up to date
+                    loadFromJSONFile().then(() => {
+                        // Update UI if new data was loaded
+                        if (dashboardData.predictions && dashboardData.predictions.length > 0) {
+                            requestAnimationFrame(() => {
+                                updateHighlights();
+                                updateStatusTable();
+                                updateMaintenanceChart();
+                                updateBiofoulingAnalysis();
+                                updateFleetProportions();
+                            });
+                        }
+                    }).catch(() => {
+                        // Ignore errors, we already have data from localStorage
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.warn('Error parsing localStorage data, will reload from source:', e);
+                localStorage.removeItem('biofouling_dashboard_data');
             }
-        } else {
-            // Try loading from predictions
-            const predictions = localStorage.getItem('biofouling_predictions');
-            if (predictions) {
+        }
+        
+        // Try loading from predictions storage
+        const predictions = localStorage.getItem('biofouling_predictions');
+        if (predictions) {
+            try {
                 const preds = JSON.parse(predictions);
                 // Limit to max predictions (safety check)
                 const maxPredictions = typeof STORAGE_CONFIG !== 'undefined' 
@@ -69,11 +96,17 @@ async function loadDashboardData() {
                     }
                 });
                 dashboardData.ships = Array.from(shipsMap.values());
-            } else {
-                // Try loading from analise_biofouling.json file
-                await loadFromJSONFile();
+                if (dashboardData.predictions.length > 0) {
+                    console.log('Loaded data from biofouling_predictions:', dashboardData.predictions.length, 'predictions');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Error parsing predictions from localStorage:', e);
             }
         }
+        
+        // Try loading from analise_biofouling.json file or embedded data
+        await loadFromJSONFile();
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         // Try loading from JSON file as fallback
@@ -86,29 +119,34 @@ async function loadDashboardData() {
  */
 async function loadFromJSONFile() {
     try {
-        // Try to fetch JSON file
         let jsonData = null;
         
+        // Try to fetch JSON file first
         try {
-            const response = await fetch('analise_biofouling.json');
+            const response = await fetch('analise_biofouling.json', {
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
             if (response.ok) {
                 jsonData = await response.json();
+                console.log('Data loaded from analise_biofouling.json file');
             } else {
-                console.log('JSON file not found or not accessible via fetch');
+                console.warn('JSON file not accessible, trying embedded data');
             }
         } catch (fetchError) {
-            console.warn('Fetch failed (likely CORS issue with file:// protocol):', fetchError);
-            // Try to load from embedded data if available
-            if (typeof ANALISE_BIOFOULING_DATA !== 'undefined') {
-                console.log('Loading data from embedded script');
-                jsonData = ANALISE_BIOFOULING_DATA;
-            } else {
-                console.log('No embedded data available, fetch failed');
-                return;
-            }
+            console.warn('Fetch failed, trying embedded data:', fetchError);
+        }
+        
+        // Fallback to embedded data if fetch failed
+        if (!jsonData && typeof ANALISE_BIOFOULING_DATA !== 'undefined') {
+            console.log('Using embedded ANALISE_BIOFOULING_DATA');
+            jsonData = ANALISE_BIOFOULING_DATA;
         }
         
         if (!jsonData) {
+            console.warn('No data available from file or embedded source');
             return;
         }
         
@@ -174,12 +212,97 @@ async function loadFromJSONFile() {
         try {
             localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
             localStorage.setItem('biofouling_predictions', JSON.stringify(predictions));
-            console.log('Data loaded from analise_biofouling.json and saved to localStorage');
+            console.log(`✅ Data loaded and saved: ${predictions.length} predictions, ${dashboardData.ships.length} ships`);
         } catch (e) {
             console.warn('Could not save to localStorage:', e);
         }
+        
+        // Force UI update after loading (always update when data is loaded)
+        if (predictions.length > 0) {
+            // Use requestAnimationFrame for smoother updates
+            requestAnimationFrame(() => {
+                updateHighlights();
+                updateStatusTable();
+                updateMaintenanceChart();
+                updateBiofoulingAnalysis();
+                updateFleetProportions();
+            });
+        }
     } catch (error) {
         console.error('Error loading from JSON file:', error);
+        // If embedded data is available, try using it directly
+        if (typeof ANALISE_BIOFOULING_DATA !== 'undefined' && ANALISE_BIOFOULING_DATA.length > 0) {
+            console.log('Attempting to use embedded data as last resort');
+            // Recursive call with embedded data
+            const jsonData = ANALISE_BIOFOULING_DATA;
+            // Process the data (same conversion logic)
+            const predictions = jsonData.map(item => {
+                const extraFuelTons = item.Extra_Fuel_Tons || 0;
+                const estimatedBasePower = 8000;
+                const powerIncreasePercent = item.Power_Increase_Percent || 0;
+                const deltaPowerKw = (powerIncreasePercent / 100) * estimatedBasePower;
+                
+                return {
+                    ship_id: item.shipName,
+                    biofouling_level: item.Biofouling_Level,
+                    risk_category: item.Risk_Category,
+                    confidence: item.Confidence,
+                    timestamp: item.startGMTDate ? new Date(item.startGMTDate).toISOString() : new Date().toISOString(),
+                    sessionId: item.sessionId,
+                    impact_analysis: {
+                        extra_fuel_tons: extraFuelTons,
+                        extra_co2_tons: item.Extra_CO2_Tons || 0,
+                        delta_power_kw: Math.round(deltaPowerKw),
+                        total_cost_brl: item.Total_Cost_BRL || 0,
+                        total_cost_usd: item.Total_Cost_USD || 0,
+                        preferred_currency: 'BRL',
+                        extra_cost_brl: item.Extra_Cost_BRL || 0,
+                        extra_cost_usd: item.Extra_Cost_USD || 0
+                    },
+                    recommended_action: item.Action
+                };
+            });
+            
+            const shipsMap = new Map();
+            predictions.forEach(pred => {
+                if (!shipsMap.has(pred.ship_id)) {
+                    shipsMap.set(pred.ship_id, {
+                        id: pred.ship_id,
+                        name: pred.ship_id,
+                        level: pred.biofouling_level,
+                        riskCategory: pred.risk_category,
+                        location: 'Em trânsito'
+                    });
+                } else {
+                    const existingShip = shipsMap.get(pred.ship_id);
+                    if (pred.timestamp > (existingShip.lastUpdate || '')) {
+                        existingShip.level = pred.biofouling_level;
+                        existingShip.riskCategory = pred.risk_category;
+                        existingShip.lastUpdate = pred.timestamp;
+                    }
+                }
+            });
+            
+            dashboardData.predictions = predictions;
+            dashboardData.ships = Array.from(shipsMap.values());
+            
+            try {
+                localStorage.setItem('biofouling_dashboard_data', JSON.stringify(dashboardData));
+                localStorage.setItem('biofouling_predictions', JSON.stringify(predictions));
+                console.log('✅ Data loaded from embedded source and saved to localStorage');
+            } catch (e) {
+                console.warn('Could not save to localStorage:', e);
+            }
+            
+            // Force UI update
+            requestAnimationFrame(() => {
+                updateHighlights();
+                updateStatusTable();
+                updateMaintenanceChart();
+                updateBiofoulingAnalysis();
+                updateFleetProportions();
+            });
+        }
     }
 }
 
