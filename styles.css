@@ -236,6 +236,7 @@ body {
 .highlights-section {
     margin-bottom: var(--spacing-lg);
     padding: var(--spacing-md) 0;
+    overflow: visible;
 }
 
 .section-header {
@@ -298,6 +299,8 @@ body {
     align-items: center;
     gap: var(--spacing-md);
     transition: all 0.3s ease;
+    position: relative;
+    overflow: visible;
 }
 
 .highlight-card:hover {
@@ -326,12 +329,83 @@ body {
 
 .card-content {
     flex: 1;
+    overflow: visible;
+    position: relative;
 }
 
 .card-label {
     font-size: 13px;
     color: var(--color-dark-gray);
     margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* ===== TOOLTIP STYLES ===== */
+.info-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+    color: var(--color-dark-gray);
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.info-icon:hover {
+    opacity: 1;
+}
+
+.info-icon .material-icons {
+    font-size: 16px;
+}
+
+/* Tooltip usando ::after */
+.info-icon::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--color-black);
+    color: var(--color-white);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    font-weight: 400;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.4;
+    max-width: 250px;
+    width: max-content;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Seta do tooltip usando ::before */
+.info-icon::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border: 6px solid transparent;
+    border-top-color: var(--color-black);
+    z-index: 100000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.info-icon:hover::after,
+.info-icon:hover::before {
+    opacity: 1;
 }
 
 .card-value {
