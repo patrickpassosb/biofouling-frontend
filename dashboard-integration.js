@@ -49,9 +49,15 @@ async function loadDashboardData() {
                 // If we have valid data, use it but still try to refresh from source in background
                 if (dashboardData.predictions && dashboardData.predictions.length > 0) {
                     console.log('Loaded data from localStorage:', dashboardData.predictions.length, 'predictions');
+                    // Update UI immediately with localStorage data
+                    updateHighlights();
+                    updateStatusTable();
+                    updateMaintenanceChart();
+                    updateBiofoulingAnalysis();
+                    updateFleetProportions();
                     // Still try to load fresh data in background (non-blocking) to ensure it's up to date
                     loadFromJSONFile().then(() => {
-                        // Update UI if new data was loaded
+                        // Update UI again if new data was loaded
                         if (dashboardData.predictions && dashboardData.predictions.length > 0) {
                             requestAnimationFrame(() => {
                                 updateHighlights();
@@ -693,7 +699,14 @@ function updatePriorityShipsList(priorityShips) {
     if (!container) return;
 
     if (priorityShips.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #4D4D4D; padding: 20px;">Nenhum navio prioritário identificado.</p>';
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-icons">check_circle</span>
+                </div>
+                <div class="empty-state-message">Nenhum navio prioritário identificado. Frota em bom estado!</div>
+            </div>
+        `;
         return;
     }
 
@@ -882,14 +895,27 @@ function updateRecommendations(recommendations) {
  * Update fleet proportions treemap
  */
 function updateFleetProportions() {
-    if (!dashboardData.ships || dashboardData.ships.length === 0) {
+    const container = document.getElementById('fleetProportionTreemap');
+    if (!container) return;
+    
+    // Don't show empty state if data might still be loading
+    if (!dashboardData || !dashboardData.ships || dashboardData.ships.length === 0) {
+        // Only show empty state if we're sure there's no data (not just loading)
+        const hasPredictions = dashboardData.predictions && dashboardData.predictions.length > 0;
+        if (!hasPredictions) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <span class="material-icons">directions_boat</span>
+                    </div>
+                    <div class="empty-state-message">Nenhum navio disponível para análise</div>
+                </div>
+            `;
+        }
         return;
     }
 
     const proportions = DataAnalyzer.calculateFleetProportions(dashboardData.ships);
-    const container = document.getElementById('fleetProportionTreemap');
-    
-    if (!container) return;
 
     const items = container.querySelectorAll('.treemap-item');
     if (items.length >= 3) {
